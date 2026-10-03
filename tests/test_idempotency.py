@@ -1,4 +1,3 @@
-from unittest.mock import patch
 from src.idempotency import event_key
 
 
