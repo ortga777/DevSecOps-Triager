@@ -11,6 +11,7 @@ class Settings:
     max_log_chars: int
     idempotency_table: str
     github_auth_mode: str
+    codebuild_project_name: str
 
     @classmethod
     def from_env(cls):
@@ -33,4 +34,5 @@ class Settings:
             int(os.environ.get("MAX_LOG_CHARS", "30000")),
             required["IDEMPOTENCY_TABLE"],
             auth_mode,
+            os.environ.get("CODEBUILD_PROJECT_NAME", "").strip(),
         )
