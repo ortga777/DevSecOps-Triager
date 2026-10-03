@@ -103,3 +103,47 @@ The model ID is intentionally configurable. Strands Agents supports Amazon Bedro
 ## License
 
 See `LICENSE`.
+
+
+## Hackathon demo architecture
+
+The demo-ready branch adds three production controls:
+
+- **GitHub App authentication path:** installation tokens are short-lived and scoped to the repositories and permissions granted to the app.
+- **Webhook idempotency:** DynamoDB prevents duplicate GitHub deliveries from producing duplicate triage comments.
+- **Approval gate:** the agent is advisory and cannot directly modify source code.
+
+For GitHub App mode, store the App ID/private key and webhook secret in AWS Secrets Manager. The webhook installation payload supplies the installation ID needed to obtain an installation access token.
+
+## Scanner isolation
+
+`codebuild/buildspec-security.yml` provides an isolated Semgrep execution path. The recommended production topology is Lambda → CodeBuild → scanner artifact → Lambda → GitHub comment. This keeps heavyweight scanners outside the request-processing Lambda.
+
+AWS CodeBuild supports GitHub webhooks and webhook filtering; for the demo, keep the scanner trigger controlled by the triager rather than allowing arbitrary repository events to start builds.
+
+## Demo script
+
+**Scenario A — secret signal**
+
+1. Create a PR with a harmless fixture that matches a secret pattern.
+2. GitHub sends `pull_request`.
+3. Lambda validates the signature and claims the delivery in DynamoDB.
+4. Strands routes the event to `scan_secrets`.
+5. The deterministic scanner reports the signal.
+6. The bot comments on the PR.
+
+**Scenario B — failed CI**
+
+1. Trigger a deliberately failing test.
+2. GitHub sends `workflow_run`.
+3. Lambda retrieves the failed job logs.
+4. Strands routes the event to `analyze_build_failure`.
+5. The bot posts a concise failure summary.
+
+**Scenario C — proposed fix**
+
+The agent may recommend a patch, but the patch must enter a separate approval-controlled workflow. No autonomous source mutation is part of the default demo path.
+
+## Performance claims
+
+Do not present latency or cost numbers as facts until they are measured in the target AWS region and workload. Record p50/p95 latency, model invocation time, Lambda duration, scanner duration, and total cost per 1,000 events during the final demo rehearsal.
