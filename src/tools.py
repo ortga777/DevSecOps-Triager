@@ -24,6 +24,9 @@ def post_triage_comment(client: GitHubClient, owner: str, repo: str, number: int
     if findings:
         body += ['### Secret-scan signal', f'Potential secret patterns detected: **{len(findings)}**.', 'Review the changed lines and rotate any exposed credential if confirmed.', '']
     if summary:
-        body += ['### Build analysis', f"Relevant failure lines detected: **{summary['error_count']}**.", '']
+        if 'id' in summary:
+            body += ['### Isolated Semgrep scan', f"CodeBuild started: `{summary['id']}`.", 'The scanner runs outside the request Lambda; its artifact/result can be collected by the follow-up integration workflow.', '']
+        else:
+            body += ['### Build analysis', f"Relevant failure lines detected: **{summary['error_count']}**.", '']
     body.append('_Advisory analysis only. No source-code mutation was performed._')
     return client.comment(owner, repo, number, '\n'.join(body))
