@@ -53,7 +53,8 @@ Resources:
     Properties:
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Source:
-        Type: NO_SOURCE
+        Type: GITHUB
+        Location: https://github.com/ortga777/DevSecOps-Triager
         BuildSpec: codebuild/buildspec-security.yml
       Artifacts:
         Type: NO_ARTIFACTS
