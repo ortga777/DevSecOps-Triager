@@ -1,8 +1,8 @@
 import json
-import json
 import re
 
 from strands import Agent
+
 from .models import TriageDecision
 
 SYSTEM_PROMPT = """You are the routing engine for DevSecOps-Triager.
@@ -11,7 +11,7 @@ Return ONLY JSON: {"action":"...","reason":"...","confidence":0.0}.
 Never invent tools. Never output markdown. Never generate shell commands."""
 
 def _extract(text: str) -> dict:
-    match = re.search(r'\\{.*\\}', text, re.DOTALL)
+    match = re.search(r'\{.*\}', text, re.DOTALL)
     if not match:
         raise ValueError('Decider returned no JSON object')
     return json.loads(match.group(0))
