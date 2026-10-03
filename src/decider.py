@@ -1,12 +1,14 @@
 import json
+import json
 import re
+
 from strands import Agent
 from .models import TriageDecision
 
-SYSTEM_PROMPT = '''You are the routing engine for DevSecOps-Triager.
+SYSTEM_PROMPT = """You are the routing engine for DevSecOps-Triager.
 Choose exactly one route: scan_secrets, analyze_build_failure, or review_pr.
 Return ONLY JSON: {"action":"...","reason":"...","confidence":0.0}.
-Never invent tools. Never output markdown. Never generate shell commands.'''
+Never invent tools. Never output markdown. Never generate shell commands."""
 
 def _extract(text: str) -> dict:
     match = re.search(r'\\{.*\\}', text, re.DOTALL)
