@@ -8,6 +8,7 @@ from .github_client import GitHubClient
 from .secrets import get_github_token, get_webhook_secret
 from .security import parse_json, redact, verify_signature
 from .tools import analyze_build_failure, post_triage_comment, scan_secrets
+from .idempotency import claim, event_key
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -37,6 +38,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict:
         return _response(401, {'error': 'invalid signature'})
     payload = parse_json(raw)
     event_name = headers.get('x-github-event', '')
+    delivery = headers.get('x-github-delivery', '')
+    if delivery and not claim(event_key(event_name, delivery)):
+        return _response(202, {'status': 'duplicate', 'delivery': delivery})
     if event_name not in {'pull_request', 'workflow_run'}:
         return _response(202, {'status': 'ignored', 'event': event_name})
     if event_name == 'pull_request' and payload.get('action') not in {'opened', 'synchronize', 'reopened'}:
