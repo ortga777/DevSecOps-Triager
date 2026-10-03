@@ -28,6 +28,7 @@ Globals:
         MAX_DIFF_CHARS: '60000'
         MAX_LOG_CHARS: '30000'
         APPROVAL_REQUIRED: 'true'
+        GITHUB_AUTH_MODE: 'app'
 
 Resources:
   IdempotencyTable:
