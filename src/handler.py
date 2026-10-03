@@ -6,7 +6,8 @@ from .config import Settings
 from .decider import decide
 from .github_client import GitHubClient
 from .idempotency import claim, event_key
-from .secrets import get_github_token, get_webhook_secret
+from .github_app import installation_token
+from .secrets import get_github_app_credentials, get_github_token, get_webhook_secret
 from .security import parse_json, redact, verify_signature
 from .tools import analyze_build_failure, post_triage_comment, scan_secrets
 
@@ -49,7 +50,16 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict:
         return _response(202, {'status': 'ignored', 'reason': 'workflow_not_failed'})
 
     owner, repo = _repo(payload)
-    client = GitHubClient(get_github_token(settings.github_secret_arn))
+    if settings.github_auth_mode == "app":
+        credentials = get_github_app_credentials(settings.github_secret_arn)
+        github_token = installation_token(
+            credentials["app_id"],
+            credentials["private_key"],
+            credentials["installation_id"],
+        )
+    else:
+        github_token = get_github_token(settings.github_secret_arn)
+    client = GitHubClient(github_token)
 
     if event_name == 'pull_request':
         pr = payload['pull_request']
