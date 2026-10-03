@@ -13,7 +13,7 @@ def verify_signature(raw_body: bytes, signature: str | None, secret: str) -> boo
 def parse_json(raw_body: bytes) -> dict:
     value = json.loads(raw_body.decode('utf-8'))
     if not isinstance(value, dict):
-        raise ValueError('Webhook payload must be a JSON object')
+        raise TypeError('Webhook payload must be a JSON object')
     return value
 
 
