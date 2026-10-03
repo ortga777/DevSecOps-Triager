@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Production AWS SAM stack for DevSecOps-Triager.
+Description: Production AWS SAM stack for DevSecOps-Triager hackathon demo.
 
 Parameters:
   DeciderModelId:
@@ -8,10 +8,10 @@ Parameters:
     Description: Bedrock model ID used by Strands Agents.
   GitHubSecretArn:
     Type: String
-    Description: Secrets Manager ARN containing GitHub credentials.
+    Description: Secrets Manager ARN containing GitHub credentials or GitHub App credentials.
   GitHubWebhookSecretArn:
     Type: String
-    Description: Secrets Manager ARN containing the webhook secret.
+    Description: Secrets Manager ARN containing the GitHub webhook secret.
 
 Globals:
   Function:
@@ -24,10 +24,28 @@ Globals:
         DECIDER_MODEL_ID: !Ref DeciderModelId
         GITHUB_SECRET_ARN: !Ref GitHubSecretArn
         GITHUB_WEBHOOK_SECRET_ARN: !Ref GitHubWebhookSecretArn
+        IDEMPOTENCY_TABLE: !Ref IdempotencyTable
         MAX_DIFF_CHARS: '60000'
         MAX_LOG_CHARS: '30000'
+        APPROVAL_REQUIRED: 'true'
 
 Resources:
+  IdempotencyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: event_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: event_key
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
   TriagerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -41,10 +59,15 @@ Resources:
                 - bedrock:InvokeModelWithResponseStream
               Resource: '*'
             - Effect: Allow
-              Action: secretsmanager:GetSecretValue
+              Action:
+                - secretsmanager:GetSecretValue
               Resource:
                 - !Ref GitHubSecretArn
                 - !Ref GitHubWebhookSecretArn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt IdempotencyTable.Arn
       Events:
         GitHubWebhook:
           Type: Api
@@ -56,3 +79,6 @@ Outputs:
   WebhookUrl:
     Description: GitHub webhook endpoint.
     Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/webhook/github'
+  IdempotencyTableName:
+    Description: DynamoDB table used to suppress duplicate webhook deliveries.
+    Value: !Ref IdempotencyTable
