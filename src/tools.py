@@ -6,7 +6,7 @@ PATTERNS = [
     re.compile(r'AKIA[0-9A-Z]{16}'),
     re.compile(r'ghp_[A-Za-z0-9]{20,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{20,}'),
-    re.compile(r'''(?i)(api[_-]?key|secret|token|password)\\s*[:=]\\s*[\'\"][^\'\"]{8,}'''),
+    re.compile(r'''(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['"][^'"]{8,}'''),
 ]
 
 def scan_secrets(diff: str) -> list[str]:
@@ -26,4 +26,4 @@ def post_triage_comment(client: GitHubClient, owner: str, repo: str, number: int
     if summary:
         body += ['### Build analysis', f"Relevant failure lines detected: **{summary['error_count']}**.", '']
     body.append('_Advisory analysis only. No source-code mutation was performed._')
-    return client.comment(owner, repo, number, '\\n'.join(body))
+    return client.comment(owner, repo, number, '\n'.join(body))
