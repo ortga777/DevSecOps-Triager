@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Any
 from .config import Settings
+from .codebuild import start_security_scan
 from .decider import decide
 from .github_client import GitHubClient
 from .idempotency import claim, event_key
@@ -68,7 +69,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict:
         context_data = {'event': event_name, 'action': payload.get('action'), 'repository': f'{owner}/{repo}', 'pull_request': number, 'title': pr.get('title', ''), 'diff': redact(diff)}
         decision = decide(settings.model_id, context_data)
         findings = scan_secrets(diff) if decision.action == 'scan_secrets' else []
-        post_triage_comment(client, owner, repo, number, decision.action, decision.reason, findings=findings)
+        scan_build = None
+        if decision.action == 'scan_secrets' and settings.codebuild_project_name:
+            scan_build = start_security_scan(
+                settings.codebuild_project_name,
+                pr.get('base', {}).get('repo', {}).get('clone_url', ''),
+                number,
+            )
+        post_triage_comment(client, owner, repo, number, decision.action, decision.reason, findings=findings, summary=scan_build)
         logger.info('triage_complete repo=%s pr=%s action=%s confidence=%.2f', f'{owner}/{repo}', number, decision.action, decision.confidence)
         return _response(200, {'status': 'processed', 'decision': decision.as_dict()})
 
