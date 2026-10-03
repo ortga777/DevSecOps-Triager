@@ -1,4 +1,5 @@
 import json
+
 import boto3
 
 _client = boto3.client('secretsmanager')
