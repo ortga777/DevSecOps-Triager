@@ -5,10 +5,10 @@ from typing import Any
 from .config import Settings
 from .decider import decide
 from .github_client import GitHubClient
+from .idempotency import claim, event_key
 from .secrets import get_github_token, get_webhook_secret
 from .security import parse_json, redact, verify_signature
 from .tools import analyze_build_failure, post_triage_comment, scan_secrets
-from .idempotency import claim, event_key
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
