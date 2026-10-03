@@ -1,0 +1,15 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - python --version
+      - pip install --no-cache-dir semgrep
+  build:
+    commands:
+      - echo 'Running isolated security scan'
+      - semgrep scan --config p/security-audit --json --output semgrep.json . || true
+      - test -f semgrep.json
+artifacts:
+  files:
+    - semgrep.json
+  discard-paths: yes
