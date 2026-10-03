@@ -2,11 +2,11 @@ import json
 
 import boto3
 
-_client = boto3.client("secretsmanager")
+
 
 
 def get_secret(arn: str) -> str:
-    value = _client.get_secret_value(SecretId=arn)
+    value = boto3.client("secretsmanager").get_secret_value(SecretId=arn)
     if "SecretString" in value:
         return value["SecretString"]
     return value["SecretBinary"].decode()
