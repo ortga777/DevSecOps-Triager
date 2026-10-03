@@ -13,6 +13,11 @@ def start_security_scan(project_name: str, repository_url: str, pull_request_num
         sourceLocationOverride=repository_url,
         sourceVersion=f"pr/{pull_request_number}",
         buildspecOverride="codebuild/buildspec-security.yml",
+        artifactsOverride={"type": "NO_ARTIFACTS"},
+        environmentVariablesOverride=[
+            {"name": "TRIAGER_PR_NUMBER", "value": str(pull_request_number), "type": "PLAINTEXT"},
+            {"name": "TRIAGER_REPOSITORY", "value": repository_url, "type": "PLAINTEXT"},
+        ],
     )
     build = response["build"]
     return {
