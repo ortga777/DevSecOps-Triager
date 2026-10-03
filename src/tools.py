@@ -1,4 +1,5 @@
 import re
+
 from .github_client import GitHubClient
 
 PATTERNS = [
