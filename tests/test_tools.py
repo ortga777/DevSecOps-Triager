@@ -1,5 +1,6 @@
 from src.tools import analyze_build_failure, scan_secrets
 
+
 def test_secret_scan():
     assert scan_secrets("token = 'ghp_abcdefghijklmnopqrstuvwxyz123456'")
 
