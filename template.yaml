@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Production AWS SAM stack for DevSecOps-Triager.
+
+Parameters:
+  DeciderModelId:
+    Type: String
+    Description: Bedrock model ID used by Strands Agents.
+  GitHubSecretArn:
+    Type: String
+    Description: Secrets Manager ARN containing GitHub credentials.
+  GitHubWebhookSecretArn:
+    Type: String
+    Description: Secrets Manager ARN containing the webhook secret.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 60
+    MemorySize: 1024
+    Tracing: Active
+    Environment:
+      Variables:
+        DECIDER_MODEL_ID: !Ref DeciderModelId
+        GITHUB_SECRET_ARN: !Ref GitHubSecretArn
+        GITHUB_WEBHOOK_SECRET_ARN: !Ref GitHubWebhookSecretArn
+        MAX_DIFF_CHARS: '60000'
+        MAX_LOG_CHARS: '30000'
+
+Resources:
+  TriagerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src.handler.lambda_handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: '*'
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource:
+                - !Ref GitHubSecretArn
+                - !Ref GitHubWebhookSecretArn
+      Events:
+        GitHubWebhook:
+          Type: Api
+          Properties:
+            Path: /webhook/github
+            Method: post
+
+Outputs:
+  WebhookUrl:
+    Description: GitHub webhook endpoint.
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/webhook/github'
