@@ -12,6 +12,7 @@ class Settings:
     idempotency_table: str
     github_auth_mode: str
     codebuild_project_name: str
+    result_bucket: str
 
     @classmethod
     def from_env(cls):
@@ -20,6 +21,7 @@ class Settings:
             "GITHUB_SECRET_ARN": os.environ.get("GITHUB_SECRET_ARN", "").strip(),
             "GITHUB_WEBHOOK_SECRET_ARN": os.environ.get("GITHUB_WEBHOOK_SECRET_ARN", "").strip(),
             "IDEMPOTENCY_TABLE": os.environ.get("IDEMPOTENCY_TABLE", "").strip(),
+            "TRIAGER_RESULT_BUCKET": os.environ.get("TRIAGER_RESULT_BUCKET", "").strip(),
         }
         if any(not value for value in required.values()):
             raise RuntimeError("Required environment variables are missing")
@@ -35,4 +37,5 @@ class Settings:
             required["IDEMPOTENCY_TABLE"],
             auth_mode,
             os.environ.get("CODEBUILD_PROJECT_NAME", "").strip(),
+            required["TRIAGER_RESULT_BUCKET"],
         )
