@@ -1,5 +1,7 @@
 import hashlib
 import os
+from time import time
+
 import boto3
 
 
@@ -15,7 +17,6 @@ def event_key(event_id: str, delivery: str) -> str:
 
 
 def claim(key: str, ttl_seconds: int = 86400) -> bool:
-    from time import time
     table = _table()
     try:
         table.put_item(
