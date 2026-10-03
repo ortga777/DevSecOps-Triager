@@ -30,6 +30,7 @@ Globals:
         APPROVAL_REQUIRED: 'true'
         GITHUB_AUTH_MODE: 'app'
         CODEBUILD_PROJECT_NAME: !Ref SecurityScanProject
+        TRIAGER_RESULT_BUCKET: !Ref TriagerResultBucket
 
 Resources:
   IdempotencyTable:
@@ -48,6 +49,24 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  TriagerResultBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireScannerResults
+            Status: Enabled
+            ExpirationInDays: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
   SecurityScanProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -63,6 +82,9 @@ Resources:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:7.0
         PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: TRIAGER_RESULT_BUCKET
+            Value: !Ref TriagerResultBucket
 
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
@@ -75,7 +97,7 @@ Resources:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: SecurityScanLogs
+        - PolicyName: SecurityScanLogsAndResults
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -85,6 +107,10 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub '${TriagerResultBucket.Arn}/results/*'
 
   TriagerFunction:
     Type: AWS::Serverless::Function
@@ -112,12 +138,43 @@ Resources:
               Action:
                 - codebuild:StartBuild
               Resource: !GetAtt SecurityScanProject.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub '${TriagerResultBucket.Arn}/results/*'
       Events:
         GitHubWebhook:
           Type: Api
           Properties:
             Path: /webhook/github
             Method: post
+
+  CodeBuildResultRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Route completed DevSecOps scanner builds back to the triager Lambda.
+      EventPattern:
+        source:
+          - aws.codebuild
+        detail-type:
+          - CodeBuild Build State Change
+        detail:
+          project-name:
+            - !Ref SecurityScanProject
+          build-status:
+            - SUCCEEDED
+            - FAILED
+      Targets:
+        - Arn: !GetAtt TriagerFunction.Arn
+          Id: TriagerCodeBuildResultTarget
+
+  CodeBuildResultPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TriagerFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CodeBuildResultRule.Arn
 
 Outputs:
   WebhookUrl:
@@ -126,3 +183,6 @@ Outputs:
   IdempotencyTableName:
     Description: DynamoDB table used to suppress duplicate webhook deliveries.
     Value: !Ref IdempotencyTable
+  ScannerResultBucket:
+    Description: Private S3 bucket storing short-lived Semgrep result envelopes.
+    Value: !Ref TriagerResultBucket
