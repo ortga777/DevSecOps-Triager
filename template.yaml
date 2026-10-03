@@ -29,6 +29,7 @@ Globals:
         MAX_LOG_CHARS: '30000'
         APPROVAL_REQUIRED: 'true'
         GITHUB_AUTH_MODE: 'app'
+        CODEBUILD_PROJECT_NAME: !Ref SecurityScanProject
 
 Resources:
   IdempotencyTable:
@@ -46,6 +47,43 @@ Resources:
         Enabled: true
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+
+  SecurityScanProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: codebuild/buildspec-security.yml
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: false
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SecurityScanLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
 
   TriagerFunction:
     Type: AWS::Serverless::Function
@@ -69,6 +107,10 @@ Resources:
               Action:
                 - dynamodb:PutItem
               Resource: !GetAtt IdempotencyTable.Arn
+            - Effect: Allow
+              Action:
+                - codebuild:StartBuild
+              Resource: !GetAtt SecurityScanProject.Arn
       Events:
         GitHubWebhook:
           Type: Api
