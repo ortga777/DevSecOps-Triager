@@ -40,6 +40,8 @@ def test_pull_request_uses_github_app_installation_token():
         patch("src.handler.get_webhook_secret", return_value="secret"),
         patch("src.handler.verify_signature", return_value=True),
         patch("src.handler.claim", return_value=True),
+        patch("src.handler.complete") as complete_claim,
+        patch("src.handler.release") as release_claim,
         patch(
             "src.handler.get_github_app_credentials",
             return_value={"app_id": "1", "private_key": "KEY", "installation_id": 2},
@@ -58,6 +60,8 @@ def test_pull_request_uses_github_app_installation_token():
         result = handler.lambda_handler(_event(payload), None)
 
     assert result["statusCode"] == 200
+    complete_claim.assert_called_once()
+    release_claim.assert_not_called()
     creds.assert_called_once_with("secret")
     token.assert_called_once_with("1", "KEY", 2)
     client_cls.assert_called_once_with("installation-token")
