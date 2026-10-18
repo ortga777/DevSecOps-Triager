@@ -54,7 +54,7 @@ GitHub credential secret (recommended GitHub App mode):
 ```json
 {
   "app_id": "YOUR_GITHUB_APP_ID",
-  "private_key": "-----BEGIN RSA PRIVATE KEY-----\\nREDACTED\\n-----END RSA PRIVATE KEY-----",
+  "private_key": "-----BEGIN RSA PRIVATE KEY-----\nREDACTED\n-----END RSA PRIVATE KEY-----",
   "installation_id": 12345678
 }
 ```
