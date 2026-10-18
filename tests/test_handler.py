@@ -39,7 +39,7 @@ def test_pull_request_uses_github_app_installation_token():
         patch("src.handler.Settings.from_env", return_value=settings),
         patch("src.handler.get_webhook_secret", return_value="secret"),
         patch("src.handler.verify_signature", return_value=True),
-        patch("src.handler.claim", return_value=True),
+        patch("src.handler.claim", return_value="owner-token"),
         patch("src.handler.complete") as complete_claim,
         patch("src.handler.release") as release_claim,
         patch(
