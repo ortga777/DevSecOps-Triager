@@ -77,6 +77,9 @@ Resources:
   SecurityScanProject:
     Type: AWS::CodeBuild::Project
     Properties:
+      Name: !Sub '${AWS::StackName}-SecurityScan'
+      TimeoutInMinutes: 15
+      QueuedTimeoutInMinutes: 5
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Source:
         Type: GITHUB
@@ -91,6 +94,12 @@ Resources:
         EnvironmentVariables:
           - Name: TRIAGER_RESULT_BUCKET
             Value: !Ref TriagerResultBucket
+
+  SecurityScanLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/codebuild/${AWS::StackName}-SecurityScan'
+      RetentionInDays: 14
 
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
