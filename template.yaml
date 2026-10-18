@@ -12,6 +12,13 @@ Parameters:
   GitHubWebhookSecretArn:
     Type: String
     Description: Secrets Manager ARN containing the GitHub webhook secret.
+  GitHubAuthMode:
+    Type: String
+    Default: app
+    AllowedValues:
+      - app
+      - token
+    Description: Use a GitHub App installation token (recommended) or a scoped token secret.
 
 Globals:
   Function:
@@ -28,7 +35,7 @@ Globals:
         MAX_DIFF_CHARS: '60000'
         MAX_LOG_CHARS: '30000'
         APPROVAL_REQUIRED: 'true'
-        GITHUB_AUTH_MODE: 'app'
+        GITHUB_AUTH_MODE: !Ref GitHubAuthMode
         CODEBUILD_PROJECT_NAME: !Ref SecurityScanProject
         TRIAGER_RESULT_BUCKET: !Ref TriagerResultBucket
 
