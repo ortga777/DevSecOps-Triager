@@ -23,7 +23,7 @@ phases:
             semgrep = json.load(handle)
 
         repository_url = os.environ["TRIAGER_REPOSITORY"]
-        repository_path = url_path = repository_url.removeprefix("https://github.com/").removesuffix(".git").strip("/")
+        repository_path = repository_url.removeprefix("https://github.com/").removesuffix(".git").strip("/")
         parts = repository_path.split("/")
         if len(parts) != 2 or not all(parts):
             raise ValueError("Invalid GitHub repository path")
