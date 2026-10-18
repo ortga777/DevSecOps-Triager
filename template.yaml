@@ -81,7 +81,6 @@ Resources:
       Source:
         Type: GITHUB
         Location: https://github.com/ortga777/DevSecOps-Triager
-        BuildSpec: codebuild/buildspec-security.yml
       Artifacts:
         Type: NO_ARTIFACTS
       Environment:
