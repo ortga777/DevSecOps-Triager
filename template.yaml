@@ -170,11 +170,12 @@ Resources:
             Resource: !GetAtt ScannerEventDlq.Arn
             Condition:
               ArnEquals:
-                aws:SourceArn: !GetAtt CodeBuildResultRule.Arn
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/DevSecOpsTriagerCodeBuildResultRule'
 
   CodeBuildResultRule:
     Type: AWS::Events::Rule
     Properties:
+      Name: DevSecOpsTriagerCodeBuildResultRule
       Description: Route completed DevSecOps scanner builds back to the triager Lambda.
       EventPattern:
         source:
