@@ -17,12 +17,19 @@ phases:
         with open("semgrep.json", encoding="utf-8") as handle:
             semgrep = json.load(handle)
 
+        repository_url = os.environ["TRIAGER_REPOSITORY"]
+        repository = (
+            repository_url.removeprefix("https://github.com/")
+            .removesuffix(".git")
+            .rstrip("/")
+        )
         envelope = {
-            "repository": os.environ["TRIAGER_REPOSITORY"].removeprefix("https://github.com/").removesuffix(".git"),
+            "repository": repository,
             "pull_request_number": int(os.environ["TRIAGER_PR_NUMBER"]),
             "build_id": os.environ["CODEBUILD_BUILD_ID"],
-            "build_status": os.environ.get("CODEBUILD_BUILD_SUCCEEDING", "0"),
+            "scanner_status": "COMPLETED",
             "findings": semgrep.get("results", []),
+            "errors": semgrep.get("errors", []),
         }
         with open("triager-result.json", "w", encoding="utf-8") as handle:
             json.dump(envelope, handle)
