@@ -12,7 +12,8 @@ phases:
   build:
     commands:
       - echo 'Running isolated security scan'
-      - semgrep scan --config p/security-audit --json --output semgrep.json . || true
+      - rm -f .semgrepignore .gitignore
+      - semgrep scan --no-git-ignore --config p/security-audit --json --output semgrep.json . || true
       - test -f semgrep.json
       - |
         python - <<'PY'
