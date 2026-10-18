@@ -65,3 +65,45 @@ def test_pull_request_uses_github_app_installation_token():
     creds.assert_called_once_with("secret")
     token.assert_called_once_with("1", "KEY", 2)
     client_cls.assert_called_once_with("installation-token")
+
+
+def test_processing_failure_releases_idempotency_claim():
+    payload = {
+        "action": "opened",
+        "repository": {"full_name": "owner/repo"},
+        "pull_request": {"number": 7, "title": "test"},
+    }
+    settings = type(
+        "SettingsStub",
+        (),
+        {
+            "github_auth_mode": "app",
+            "github_secret_arn": "secret",
+            "webhook_secret_arn": "webhook",
+            "model_id": "model",
+            "max_diff_chars": 60000,
+            "max_log_chars": 30000,
+            "idempotency_table": "table",
+        },
+    )()
+
+    with (
+        patch("src.handler.Settings.from_env", return_value=settings),
+        patch("src.handler.get_webhook_secret", return_value="secret"),
+        patch("src.handler.verify_signature", return_value=True),
+        patch("src.handler.claim", return_value="owner-token"),
+        patch("src.handler.complete") as complete_claim,
+        patch("src.handler.release") as release_claim,
+        patch("src.handler._process_github_event", side_effect=RuntimeError("temporary failure")),
+    ):
+        try:
+            handler.lambda_handler(_event(payload), None)
+        except RuntimeError as exc:
+            assert str(exc) == "temporary failure"
+        else:
+            raise AssertionError("expected processing failure to propagate")
+
+    complete_claim.assert_not_called()
+    release_claim.assert_called_once_with(
+        handler.event_key("pull_request", "delivery-1"), "owner-token"
+    )
