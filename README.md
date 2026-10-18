@@ -91,7 +91,6 @@ The model ID is intentionally configurable. Strands Agents supports Amazon Bedro
 
 ## Production hardening roadmap
 
-- Add explicit idempotency recovery for deliveries that fail after being claimed.
 - CloudWatch alarms and structured metrics.
 - Add scanner timeouts and integration tests for failed/missing S3 results.
 - Extend scanner coverage (for example, TruffleHog) only after the Semgrep path is verified end to end.
