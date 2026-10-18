@@ -82,11 +82,12 @@ def _handle_codebuild_result(event: dict[str, Any], settings: Settings) -> dict:
     number = int(result['pull_request_number'])
     client = _github_client(settings)
     findings = result.get('findings', [])
-    status = str(result.get('build_status', detail.get('build-status', 'UNKNOWN')))
+    status = str(detail.get('build-status') or result.get('scanner_status', 'UNKNOWN'))
     body = [
         '### Semgrep result',
         f'**CodeBuild:** `{build_id}`',
-        f'**Status:** `{status}`',
+        f'**Build status:** `{status}`',
+        f'**Scanner status:** `{result.get("scanner_status", "UNKNOWN")}`',
         f'**Findings:** **{len(findings)}**',
         '',
     ]
@@ -97,6 +98,9 @@ def _handle_codebuild_result(event: dict[str, Any], settings: Settings) -> dict:
         )
     else:
         body.append('No Semgrep findings were reported for this scan.')
+    errors = result.get('errors', [])
+    if errors:
+        body += ['', f'**Scanner errors:** {len(errors)}. Review the scanner artifact for details.']
     body += ['', '_Advisory analysis only. No source-code mutation was performed._']
     client.comment(owner, repo, number, '\n'.join(body))
     return _response(
