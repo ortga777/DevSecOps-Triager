@@ -28,7 +28,8 @@ def test_start_security_scan_uses_pull_request_head_and_trusted_buildspec():
     assert kwargs["sourceLocationOverride"] == "https://github.com/ortga777/DevSecOps-Triager"
     assert kwargs["sourceVersion"] == "refs/pull/42/head"
     assert kwargs["buildspecOverride"] == TRUSTED_BUILDSPEC
-    assert "semgrep scan" in kwargs["buildspecOverride"]
+    assert "semgrep scan --no-git-ignore" in kwargs["buildspecOverride"]
+    assert "rm -f .semgrepignore .gitignore" in kwargs["buildspecOverride"]
     assert "codebuild/buildspec-security.yml" not in kwargs["buildspecOverride"]
     assert kwargs["artifactsOverride"] == {"type": "NO_ARTIFACTS"}
     assert kwargs["environmentVariablesOverride"] == [
