@@ -70,9 +70,11 @@ def _handle_codebuild_result(event: dict[str, Any], settings: Settings) -> dict:
             Key=key,
         )
         result = json.loads(response['Body'].read())
-    except Exception:
+    except Exception as exc:
         logger.exception('scanner_result_fetch_failed build_id=%s', build_id)
-        return _response(202, {'status': 'pending', 'build_id': build_id})
+        # Fail the asynchronous EventBridge invocation so transient S3 timing
+        # and permission errors are retried; exhausted retries go to the DLQ.
+        raise RuntimeError(f'Unable to load scanner result for {build_id}') from exc
 
     repository = str(result.get('repository', ''))
     owner, separator, repo = repository.partition('/')
