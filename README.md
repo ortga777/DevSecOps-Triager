@@ -49,11 +49,17 @@ sam build
 
 Create two AWS Secrets Manager secrets.
 
-GitHub credential secret:
+GitHub credential secret (recommended GitHub App mode):
 
 ```json
-{"token":"REDACTED"}
+{
+  "app_id": "YOUR_GITHUB_APP_ID",
+  "private_key": "-----BEGIN RSA PRIVATE KEY-----\\nREDACTED\\n-----END RSA PRIVATE KEY-----",
+  "installation_id": 12345678
+}
 ```
+
+Keep the complete private key in Secrets Manager; never commit it. When running `sam deploy --guided`, set `GitHubAuthMode` to `app`. If you deliberately use a narrowly scoped token instead, store `{"token":"REDACTED"}` and set `GitHubAuthMode` to `token`.
 
 Webhook secret:
 
@@ -73,6 +79,9 @@ Provide:
 - `DeciderModelId`
 - `GitHubSecretArn`
 - `GitHubWebhookSecretArn`
+- `GitHubAuthMode` (`app` recommended; use `token` only for a scoped token secret)
+
+The GitHub App must be installed on the target repository with the minimum permissions needed to read pull requests/workflow jobs and write issue comments. Configure the webhook separately with the webhook secret stored in Secrets Manager.
 
 The stack outputs the webhook endpoint. Configure that endpoint in the GitHub repository webhook settings with content type `application/json`, the same webhook secret, and the required pull-request/workflow events.
 
