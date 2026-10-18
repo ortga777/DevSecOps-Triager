@@ -149,6 +149,29 @@ Resources:
             Path: /webhook/github
             Method: post
 
+  ScannerEventDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  ScannerEventDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ScannerEventDlq
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt ScannerEventDlq.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt CodeBuildResultRule.Arn
+
   CodeBuildResultRule:
     Type: AWS::Events::Rule
     Properties:
@@ -167,6 +190,11 @@ Resources:
       Targets:
         - Arn: !GetAtt TriagerFunction.Arn
           Id: TriagerCodeBuildResultTarget
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+            MaximumRetryAttempts: 10
+          DeadLetterConfig:
+            Arn: !GetAtt ScannerEventDlq.Arn
 
   CodeBuildResultPermission:
     Type: AWS::Lambda::Permission
