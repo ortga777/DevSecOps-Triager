@@ -118,14 +118,14 @@ See `LICENSE`.
 The demo-ready branch adds three production controls:
 
 - **GitHub App authentication path:** installation tokens are short-lived and scoped to the repositories and permissions granted to the app.
-- **Webhook idempotency:** DynamoDB prevents duplicate GitHub deliveries from producing duplicate triage comments.
+- **Webhook idempotency:** DynamoDB prevents duplicate GitHub deliveries from producing duplicate triage comments and allows failed processing claims to be recovered.
 - **Approval gate:** the agent is advisory and cannot directly modify source code.
 
 For GitHub App mode, store the App ID/private key and webhook secret in AWS Secrets Manager. The webhook installation payload supplies the installation ID needed to obtain an installation access token.
 
 ## Scanner isolation
 
-`codebuild/buildspec-security.yml` provides an isolated Semgrep execution path. The recommended production topology is Lambda → CodeBuild → scanner artifact → Lambda → GitHub comment. This keeps heavyweight scanners outside the request-processing Lambda.
+`src/codebuild.py` supplies a trusted inline buildspec to CodeBuild. It deliberately does not load the buildspec from the pull-request checkout, preventing an untrusted PR from replacing scanner commands with arbitrary build steps. The reference file `codebuild/buildspec-security.yml` is not used for launched scans. The topology is Lambda → CodeBuild → scanner artifact → Lambda → GitHub comment.
 
 AWS CodeBuild supports GitHub webhooks and webhook filtering; for the demo, keep the scanner trigger controlled by the triager rather than allowing arbitrary repository events to start builds.
 
