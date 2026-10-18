@@ -39,9 +39,9 @@ Prerequisites: Python 3.12+, AWS SAM CLI, AWS CLI, and access to the selected Be
 
 ```bash
 python -m pip install -r requirements.txt pytest ruff
-ruff check src tests
+ruff check --select E4,E7,E9,F src tests
 pytest -q
-sam validate
+sam validate --lint
 sam build
 ```
 
