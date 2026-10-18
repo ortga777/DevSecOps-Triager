@@ -49,6 +49,10 @@ artifacts:
 
 def start_security_scan(project_name: str, repository_url: str, pull_request_number: int) -> dict:
     parsed = urlparse(repository_url)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Only canonical GitHub HTTPS repository URLs are supported") from exc
     path = parsed.path.removesuffix(".git").strip("/")
     parts = path.split("/")
     if (
@@ -56,7 +60,7 @@ def start_security_scan(project_name: str, repository_url: str, pull_request_num
         or parsed.hostname != "github.com"
         or parsed.username
         or parsed.password
-        or parsed.port not in (None, 443)
+        or port not in (None, 443)
         or parsed.query
         or parsed.fragment
         or len(parts) != 2
