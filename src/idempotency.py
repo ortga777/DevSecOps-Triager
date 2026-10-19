@@ -32,7 +32,7 @@ def claim(key: str, lease_seconds: int = 300, completed_ttl_seconds: int = 86400
                 "expires_at": now + completed_ttl_seconds,
             },
             ConditionExpression=(
-                "attribute_not_exists(event_key) OR "
+                "attribute_not_exists(event_key) OR expires_at < :now OR "
                 "(#status = :processing AND lease_until < :now)"
             ),
             ExpressionAttributeNames={"#status": "status"},
