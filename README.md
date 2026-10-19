@@ -39,9 +39,9 @@ Prerequisites: Python 3.12+, AWS SAM CLI, AWS CLI, and access to the selected Be
 
 ```bash
 python -m pip install -r requirements.txt pytest ruff
-ruff check src tests
+ruff check --select E4,E7,E9,F src tests
 pytest -q
-sam validate
+sam validate --lint
 sam build
 ```
 
@@ -49,11 +49,17 @@ sam build
 
 Create two AWS Secrets Manager secrets.
 
-GitHub credential secret:
+GitHub credential secret (recommended GitHub App mode):
 
 ```json
-{"token":"REDACTED"}
+{
+  "app_id": "YOUR_GITHUB_APP_ID",
+  "private_key": "-----BEGIN RSA PRIVATE KEY-----\nREDACTED\n-----END RSA PRIVATE KEY-----",
+  "installation_id": 12345678
+}
 ```
+
+Keep the complete private key in Secrets Manager; never commit it. When running `sam deploy --guided`, set `GitHubAuthMode` to `app`. If you deliberately use a narrowly scoped token instead, store `{"token":"REDACTED"}` and set `GitHubAuthMode` to `token`.
 
 Webhook secret:
 
@@ -73,6 +79,9 @@ Provide:
 - `DeciderModelId`
 - `GitHubSecretArn`
 - `GitHubWebhookSecretArn`
+- `GitHubAuthMode` (`app` recommended; use `token` only for a scoped token secret)
+
+The GitHub App must be installed on the target repository with the minimum permissions needed to read pull requests/workflow jobs and write issue comments. Configure the webhook separately with the webhook secret stored in Secrets Manager.
 
 The stack outputs the webhook endpoint. Configure that endpoint in the GitHub repository webhook settings with content type `application/json`, the same webhook secret, and the required pull-request/workflow events.
 
@@ -82,10 +91,9 @@ The model ID is intentionally configurable. Strands Agents supports Amazon Bedro
 
 ## Production hardening roadmap
 
-- GitHub App installation-token authentication.
-- DynamoDB-backed webhook idempotency.
 - CloudWatch alarms and structured metrics.
-- Heavy scanners such as Semgrep/TruffleHog isolated in CodeBuild.
+- Add integration tests for failed/missing S3 results.
+- Extend scanner coverage (for example, TruffleHog) only after the Semgrep path is verified end to end.
 - Approval-gated patch generation.
 - Disposable-repository integration tests.
 - Branch protection after CI is green.
@@ -110,14 +118,14 @@ See `LICENSE`.
 The demo-ready branch adds three production controls:
 
 - **GitHub App authentication path:** installation tokens are short-lived and scoped to the repositories and permissions granted to the app.
-- **Webhook idempotency:** DynamoDB prevents duplicate GitHub deliveries from producing duplicate triage comments.
+- **Webhook idempotency:** DynamoDB prevents duplicate GitHub deliveries from producing duplicate triage comments and allows failed processing claims to be recovered.
 - **Approval gate:** the agent is advisory and cannot directly modify source code.
 
 For GitHub App mode, store the App ID/private key and webhook secret in AWS Secrets Manager. The webhook installation payload supplies the installation ID needed to obtain an installation access token.
 
 ## Scanner isolation
 
-`codebuild/buildspec-security.yml` provides an isolated Semgrep execution path. The recommended production topology is Lambda → CodeBuild → scanner artifact → Lambda → GitHub comment. This keeps heavyweight scanners outside the request-processing Lambda.
+`src/codebuild.py` supplies a trusted inline buildspec to CodeBuild. It deliberately does not load the buildspec from the pull-request checkout, preventing an untrusted PR from replacing scanner commands with arbitrary build steps. The reference file `codebuild/buildspec-security.yml` is not used for launched scans. The topology is Lambda → CodeBuild → scanner artifact → Lambda → GitHub comment.
 
 AWS CodeBuild supports GitHub webhooks and webhook filtering; for the demo, keep the scanner trigger controlled by the triager rather than allowing arbitrary repository events to start builds.
 

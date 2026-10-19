@@ -18,5 +18,16 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt pytest ruff
-      - run: ruff check --fix src tests
+      - run: ruff check --select E4,E7,E9,F src tests
       - run: pytest -q
+
+  validate-sam:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/setup-sam@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sam validate --lint
+      - run: sam build

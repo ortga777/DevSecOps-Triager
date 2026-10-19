@@ -3,8 +3,6 @@ import json
 import boto3
 
 
-
-
 def get_secret(arn: str) -> str:
     value = boto3.client("secretsmanager").get_secret_value(SecretId=arn)
     if "SecretString" in value:

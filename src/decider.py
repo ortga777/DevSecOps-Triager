@@ -18,7 +18,7 @@ def _extract(text: str) -> dict:
 
 def decide(model_id: str, context: dict) -> TriageDecision:
     agent = Agent(model=model_id)
-    result = agent(SYSTEM_PROMPT + '\\nEVENT CONTEXT:\\n' + json.dumps(context, ensure_ascii=False))
+    result = agent(SYSTEM_PROMPT + '\nEVENT CONTEXT:\n' + json.dumps(context, ensure_ascii=False))
     data = _extract(str(result))
     action = data.get('action')
     if action not in {'scan_secrets', 'analyze_build_failure', 'review_pr'}:

@@ -12,6 +12,13 @@ Parameters:
   GitHubWebhookSecretArn:
     Type: String
     Description: Secrets Manager ARN containing the GitHub webhook secret.
+  GitHubAuthMode:
+    Type: String
+    Default: app
+    AllowedValues:
+      - app
+      - token
+    Description: Use a GitHub App installation token (recommended) or a scoped token secret.
 
 Globals:
   Function:
@@ -28,7 +35,7 @@ Globals:
         MAX_DIFF_CHARS: '60000'
         MAX_LOG_CHARS: '30000'
         APPROVAL_REQUIRED: 'true'
-        GITHUB_AUTH_MODE: 'app'
+        GITHUB_AUTH_MODE: !Ref GitHubAuthMode
         CODEBUILD_PROJECT_NAME: !Ref SecurityScanProject
         TRIAGER_RESULT_BUCKET: !Ref TriagerResultBucket
 
@@ -70,11 +77,13 @@ Resources:
   SecurityScanProject:
     Type: AWS::CodeBuild::Project
     Properties:
+      Name: !Sub '${AWS::StackName}-SecurityScan'
+      TimeoutInMinutes: 15
+      QueuedTimeoutInMinutes: 5
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Source:
         Type: GITHUB
         Location: https://github.com/ortga777/DevSecOps-Triager
-        BuildSpec: codebuild/buildspec-security.yml
       Artifacts:
         Type: NO_ARTIFACTS
       Environment:
@@ -85,6 +94,12 @@ Resources:
         EnvironmentVariables:
           - Name: TRIAGER_RESULT_BUCKET
             Value: !Ref TriagerResultBucket
+
+  SecurityScanLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/codebuild/${AWS::StackName}-SecurityScan'
+      RetentionInDays: 14
 
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
@@ -133,6 +148,8 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
               Resource: !GetAtt IdempotencyTable.Arn
             - Effect: Allow
               Action:
@@ -149,9 +166,33 @@ Resources:
             Path: /webhook/github
             Method: post
 
+  ScannerEventDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  ScannerEventDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ScannerEventDlq
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt ScannerEventDlq.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/DevSecOpsTriagerCodeBuildResultRule'
+
   CodeBuildResultRule:
     Type: AWS::Events::Rule
     Properties:
+      Name: DevSecOpsTriagerCodeBuildResultRule
       Description: Route completed DevSecOps scanner builds back to the triager Lambda.
       EventPattern:
         source:
@@ -167,6 +208,11 @@ Resources:
       Targets:
         - Arn: !GetAtt TriagerFunction.Arn
           Id: TriagerCodeBuildResultTarget
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+            MaximumRetryAttempts: 10
+          DeadLetterConfig:
+            Arn: !GetAtt ScannerEventDlq.Arn
 
   CodeBuildResultPermission:
     Type: AWS::Lambda::Permission

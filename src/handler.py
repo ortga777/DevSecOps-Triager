@@ -10,7 +10,7 @@ from .config import Settings
 from .decider import decide
 from .github_app import installation_token
 from .github_client import GitHubClient
-from .idempotency import claim, event_key
+from .idempotency import claim, complete, event_key, release
 from .secrets import get_github_app_credentials, get_github_token, get_webhook_secret
 from .security import parse_json, redact, verify_signature
 from .tools import analyze_build_failure, post_triage_comment, scan_secrets
@@ -70,9 +70,11 @@ def _handle_codebuild_result(event: dict[str, Any], settings: Settings) -> dict:
             Key=key,
         )
         result = json.loads(response['Body'].read())
-    except Exception:
+    except Exception as exc:
         logger.exception('scanner_result_fetch_failed build_id=%s', build_id)
-        return _response(202, {'status': 'pending', 'build_id': build_id})
+        # Fail the asynchronous EventBridge invocation so transient S3 timing
+        # and permission errors are retried; exhausted retries go to the DLQ.
+        raise RuntimeError(f'Unable to load scanner result for {build_id}') from exc
 
     repository = str(result.get('repository', ''))
     owner, separator, repo = repository.partition('/')
@@ -82,11 +84,12 @@ def _handle_codebuild_result(event: dict[str, Any], settings: Settings) -> dict:
     number = int(result['pull_request_number'])
     client = _github_client(settings)
     findings = result.get('findings', [])
-    status = str(result.get('build_status', detail.get('build-status', 'UNKNOWN')))
+    status = str(detail.get('build-status') or result.get('scanner_status', 'UNKNOWN'))
     body = [
         '### Semgrep result',
         f'**CodeBuild:** `{build_id}`',
-        f'**Status:** `{status}`',
+        f'**Build status:** `{status}`',
+        f'**Scanner status:** `{result.get("scanner_status", "UNKNOWN")}`',
         f'**Findings:** **{len(findings)}**',
         '',
     ]
@@ -97,6 +100,9 @@ def _handle_codebuild_result(event: dict[str, Any], settings: Settings) -> dict:
         )
     else:
         body.append('No Semgrep findings were reported for this scan.')
+    errors = result.get('errors', [])
+    if errors:
+        body += ['', f'**Scanner errors:** {len(errors)}. Review the scanner artifact for details.']
     body += ['', '_Advisory analysis only. No source-code mutation was performed._']
     client.comment(owner, repo, number, '\n'.join(body))
     return _response(
@@ -109,40 +115,7 @@ def _handle_codebuild_result(event: dict[str, Any], settings: Settings) -> dict:
     )
 
 
-def lambda_handler(event: dict[str, Any], context: Any) -> dict:
-    settings = Settings.from_env()
-
-    if event.get('source') == 'aws.codebuild':
-        return _handle_codebuild_result(event, settings)
-
-    raw = _body(event)
-    headers = _headers(event)
-    if not verify_signature(
-        raw,
-        headers.get('x-hub-signature-256'),
-        get_webhook_secret(settings.webhook_secret_arn),
-    ):
-        return _response(401, {'error': 'invalid signature'})
-
-    payload = parse_json(raw)
-    event_name = headers.get('x-github-event', '')
-    delivery = headers.get('x-github-delivery', '')
-    if delivery and not claim(event_key(event_name, delivery)):
-        return _response(202, {'status': 'duplicate', 'delivery': delivery})
-    if event_name not in {'pull_request', 'workflow_run'}:
-        return _response(202, {'status': 'ignored', 'event': event_name})
-    if event_name == 'pull_request' and payload.get('action') not in {
-        'opened',
-        'synchronize',
-        'reopened',
-    }:
-        return _response(202, {'status': 'ignored', 'reason': 'pull_request_action'})
-    if event_name == 'workflow_run' and (
-        payload.get('action') != 'completed'
-        or payload.get('workflow_run', {}).get('conclusion') != 'failure'
-    ):
-        return _response(202, {'status': 'ignored', 'reason': 'workflow_not_failed'})
-
+def _process_github_event(payload: dict[str, Any], event_name: str, settings: Settings) -> dict:
     owner, repo = _repo(payload)
     client = _github_client(settings)
 
@@ -219,3 +192,47 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict:
         summary=summary,
     )
     return _response(200, {'status': 'processed', 'decision': decision.as_dict()})
+
+def lambda_handler(event: dict[str, Any], context: Any) -> dict:
+    settings = Settings.from_env()
+
+    if event.get('source') == 'aws.codebuild':
+        return _handle_codebuild_result(event, settings)
+
+    raw = _body(event)
+    headers = _headers(event)
+    if not verify_signature(
+        raw,
+        headers.get('x-hub-signature-256'),
+        get_webhook_secret(settings.webhook_secret_arn),
+    ):
+        return _response(401, {'error': 'invalid signature'})
+
+    payload = parse_json(raw)
+    event_name = headers.get('x-github-event', '')
+    delivery = headers.get('x-github-delivery', '')
+    if event_name not in {'pull_request', 'workflow_run'}:
+        return _response(202, {'status': 'ignored', 'event': event_name})
+    if event_name == 'pull_request' and payload.get('action') not in {
+        'opened', 'synchronize', 'reopened',
+    }:
+        return _response(202, {'status': 'ignored', 'reason': 'pull_request_action'})
+    if event_name == 'workflow_run' and (
+        payload.get('action') != 'completed'
+        or payload.get('workflow_run', {}).get('conclusion') != 'failure'
+    ):
+        return _response(202, {'status': 'ignored', 'reason': 'workflow_not_failed'})
+
+    key = event_key(event_name, delivery) if delivery else None
+    owner_token = claim(key) if key else None
+    if key and owner_token is None:
+        return _response(202, {'status': 'duplicate', 'delivery': delivery})
+    try:
+        response = _process_github_event(payload, event_name, settings)
+        if key and owner_token:
+            complete(key, owner_token)
+        return response
+    except Exception:
+        if key and owner_token:
+            release(key, owner_token)
+        raise
